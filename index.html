@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong Game</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #222;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid white;
+            background-color: black;
+        }
+        #startScreen, #pauseScreen, #winScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 80%;
+            width: 400px;
+        }
+        button {
+            margin: 10px 0;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .instructions {
+            font-size: 14px;
+            text-align: left;
+            margin: 15px 0;
+        }
+        .instructions h3 {
+            margin-top: 0;
+        }
+        .instructions p {
+            margin: 5px 0;
+        }
+        .caution {
+            color: #ff0000;
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="pongCanvas"></canvas>
+        <div id="startScreen">
+            <h2>Pong Game</h2>
+            <div class="instructions">
+                <h3>Instructions:</h3>
+                <p>Left player: 'W' (up) and 'S' (down)</p>
+                <p>Right player: Arrow Up and Arrow Down</p>
+                <p>Press 'Esc' to pause the game</p>
+            </div>
+            <h6 class="caution">Caution: This game is for PC and 2 players required.</h6>
+            <button id="startButton">Start Game</button>
+        </div>
+        <div id="pauseScreen" style="display: none;">
+            <h2>Game Paused</h2>
+            <button id="resumeButton">Resume</button>
+            <button id="restartButton">Restart</button>
+            <button id="endButton">End</button>
+        </div>
+        <div id="winScreen" style="display: none;">
+            <h2 id="winMessage"></h2>
+            <button id="playAgainButton">Play Again</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        let canvasWidth, canvasHeight;
+
+        // Game objects
+        let ball, leftPaddle, rightPaddle, paddleHeight, paddleWidth;
+        let leftScore = 0, rightScore = 0;
+        let gameState = 'start'; // 'start', 'playing', 'paused', 'ended'
+        const WINNING_SCORE = 5; // Define the score needed to win
+
+        function setupGame() {
+            // Set canvas size
+            canvasWidth = Math.min(window.innerWidth * 0.9, 800);
+            canvasHeight = Math.min(window.innerHeight * 0.9, 600);
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // Initialize game objects
+            paddleHeight = canvasHeight * 0.15;
+            paddleWidth = canvasWidth * 0.01;
+            
+            resetBall();
+
+            leftPaddle = {
+                x: 0,
+                y: canvasHeight / 2 - paddleHeight / 2
+            };
+
+            rightPaddle = {
+                x: canvasWidth - paddleWidth,
+                y: canvasHeight / 2 - paddleHeight / 2
+            };
+
+            resetScores();
+        }
+
+        function resetScores() {
+            leftScore = 0;
+            rightScore = 0;
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawPaddle(x, y) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x, y, paddleWidth, paddleHeight);
+        }
+
+        function drawScore() {
+            ctx.font = `${Math.min(canvasWidth, canvasHeight) * 0.05}px Arial`;
+            ctx.fillStyle = 'white';
+            ctx.fillText(leftScore, canvasWidth * 0.25, 50);
+            ctx.fillText(rightScore, canvasWidth * 0.75, 50);
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            drawBall();
+            drawPaddle(leftPaddle.x, leftPaddle.y);
+            drawPaddle(rightPaddle.x, rightPaddle.y);
+            drawScore();
+
+            // Ball movement
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Ball collision with top and bottom walls
+            if (ball.y + ball.radius > canvasHeight || ball.y - ball.radius < 0) {
+                ball.dy *= -1;
+            }
+
+            // Ball collision with paddles
+            if (
+                (ball.x - ball.radius < leftPaddle.x + paddleWidth && ball.y > leftPaddle.y && ball.y < leftPaddle.y + paddleHeight) ||
+                (ball.x + ball.radius > rightPaddle.x && ball.y > rightPaddle.y && ball.y < rightPaddle.y + paddleHeight)
+            ) {
+                ball.dx *= -1.1; // Increase speed slightly on paddle hit
+            }
+
+            // Scoring
+            if (ball.x + ball.radius > canvasWidth) {
+                leftScore++;
+                resetBall();
+                checkWinner();
+            } else if (ball.x - ball.radius < 0) {
+                rightScore++;
+                resetBall();
+                checkWinner();
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        function resetBall() {
+            ball = {
+                x: canvasWidth / 2,
+                y: canvasHeight / 2,
+                radius: Math.min(canvasWidth, canvasHeight) * 0.015,
+                dx: (Math.random() > 0.5 ? 1 : -1) * canvasWidth * 0.003,
+                dy: (Math.random() > 0.5 ? 1 : -1) * canvasHeight * 0.003
+            };
+        }
+
+        function checkWinner() {
+            if (leftScore >= WINNING_SCORE || rightScore >= WINNING_SCORE) {
+                gameState = 'ended';
+                const winner = leftScore > rightScore ? 'Left Player' : 'Right Player';
+                document.getElementById('winMessage').textContent = `${winner} Wins!`;
+                document.getElementById('winScreen').style.display = 'block';
+            }
+        }
+
+        // Paddle movement
+        document.addEventListener('keydown', (e) => {
+            if (gameState !== 'playing') return;
+
+            const paddleSpeed = canvasHeight * 0.05;
+            if (e.key === 'w' && leftPaddle.y > 0) {
+                leftPaddle.y = Math.max(0, leftPaddle.y - paddleSpeed);
+            } else if (e.key === 's' && leftPaddle.y < canvasHeight - paddleHeight) {
+                leftPaddle.y = Math.min(canvasHeight - paddleHeight, leftPaddle.y + paddleSpeed);
+            }
+
+            if (e.key === 'ArrowUp' && rightPaddle.y > 0) {
+                rightPaddle.y = Math.max(0, rightPaddle.y - paddleSpeed);
+            } else if (e.key === 'ArrowDown' && rightPaddle.y < canvasHeight - paddleHeight) {
+                rightPaddle.y = Math.min(canvasHeight - paddleHeight, rightPaddle.y + paddleSpeed);
+            }
+
+            if (e.key === 'Escape') {
+                pauseGame();
+            }
+        });
+
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            setupGame();
+        });
+
+        function startGame() {
+            gameState = 'playing';
+            document.getElementById('startScreen').style.display = 'none';
+            update();
+        }
+
+        function pauseGame() {
+            gameState = 'paused';
+            document.getElementById('pauseScreen').style.display = 'block';
+        }
+
+        function resumeGame() {
+            document.getElementById('pauseScreen').style.display = 'none';
+            countdown(3, () => {
+                gameState = 'playing';
+                update();
+            });
+        }
+
+        function restartGame() {
+            setupGame();
+            document.getElementById('pauseScreen').style.display = 'none';
+            document.getElementById('winScreen').style.display = 'none';
+            countdown(3, () => {
+                gameState = 'playing';
+                update();
+            });
+        }
+
+        function endGame() {
+            gameState = 'ended';
+            resetScores();
+            document.getElementById('pauseScreen').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'block';
+        }
+
+        function countdown(seconds, callback) {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.font = `${Math.min(canvasWidth, canvasHeight) * 0.1}px Arial`;
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.fillText(seconds, canvasWidth / 2, canvasHeight / 2);
+
+            if (seconds > 0) {
+                setTimeout(() => countdown(seconds - 1, callback), 1000);
+            } else {
+                callback();
+            }
+        }
+
+        // Event listeners for buttons
+        document.getElementById('startButton').addEventListener('click', startGame);
+        document.getElementById('resumeButton').addEventListener('click', resumeGame);
+        document.getElementById('restartButton').addEventListener('click', restartGame);
+        document.getElementById('endButton').addEventListener('click', endGame);
+        document.getElementById('playAgainButton').addEventListener('click', restartGame);
+
+        // Initial setup
+        setupGame();
+    </script>
+</body>
+</html>
